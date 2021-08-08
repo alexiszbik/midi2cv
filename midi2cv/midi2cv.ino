@@ -7,6 +7,8 @@
 #define OUT_GATE 12
 #define OUT_CV_LED 8
 
+#define RATIO_POT A2
+
 #define PULSE_PER_QUARTER 24
 #define MIN_C 24
 
@@ -14,10 +16,17 @@ MIDI_CREATE_DEFAULT_INSTANCE();
 
 Adafruit_MCP4725 dac;
 
+float npqList[9] = {12,8,4,3,2,1,0.5,1./3., 0.25};
+int npqListSize = 9;
+
+float currentNpq = 0;
+
 uint32_t midiTick = 0;
 
 void setup() {
   Serial.begin(9600);
+
+  Serial.print(npqListSize);
 
   // For Adafruit MCP4725A1 the address is 0x62 (default) or 0x63 (ADDR pin tied to VCC)
   // For MCP4725A0 the address is 0x60 or 0x61
@@ -34,7 +43,13 @@ void setup() {
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
+
+  int potValue = analogRead(RATIO_POT);
+  
+  int npqIndex = round((potValue/1023.0) * (npqListSize - 1));
+  
+  currentNpq = npqList[npqIndex];
+ 
   MIDI.read();
 }
 
@@ -54,7 +69,7 @@ void outputClock(float notesPerQuarter, int pin) {
 
 void handleClock() {
   outputClock(4, OUT_CLOCK_16TH);
-  outputClock(2, OUT_CLOCK);
+  outputClock(currentNpq, OUT_CLOCK);
   midiTick = midiTick + 1;
 }
 
