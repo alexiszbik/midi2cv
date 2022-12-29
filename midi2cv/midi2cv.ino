@@ -10,7 +10,7 @@
 #define RATIO_POT A2
 #define RATCHET_POT A1
 #define SWITCH_CLOCK_OUT 3
-#define SWITCH_NO_TERNARY 4
+#define SWITCH_DAC_MODE 2
 
 #define PULSE_PER_QUARTER 24
 #define MIN_C 24
@@ -36,6 +36,9 @@ bool isPlaying = false;
 unsigned long delayStart = 0;
 bool delayIsRunning = false;
 
+int dacCCValue = 0;
+int dacRandValue = 0;
+
 void setup() {
   Serial.begin(9600);
 
@@ -44,7 +47,7 @@ void setup() {
   dac.begin(0x62);
 
   pinMode(SWITCH_CLOCK_OUT, INPUT_PULLUP);
-  pinMode(SWITCH_NO_TERNARY, INPUT_PULLUP);
+  pinMode(SWITCH_DAC_MODE, INPUT_PULLUP);
   
   MIDI.setHandleClock(handleClock);
   MIDI.setHandleStart(handleStart);
@@ -93,8 +96,19 @@ void loop() {
 
   if ((millis() - delayStart) >= 500 && delayIsRunning) {
     delayIsRunning = false;
-  } 
-  digitalWrite(OUT_CV_LED, delayIsRunning ? HIGH : LOW);
+  }
+
+  bool dacMode = digitalRead(SWITCH_DAC_MODE) == HIGH;
+
+  if (dacMode) {
+    dac.setVoltage(dacCCValue, false);
+    digitalWrite(OUT_CV_LED, delayIsRunning ? HIGH : LOW);
+  } else {
+    dac.setVoltage(dacRandValue, false);
+    digitalWrite(OUT_CV_LED, (syncClockStatus && isPlaying) ? HIGH : LOW);
+  }
+
+  
 }
 
 void handleStart() {
@@ -128,7 +142,12 @@ void handleClock() {
     ratchetState = potValue >= randomValue;
   }
 
+  previous = syncClockStatus;
   syncClockStatus = ratchetState ? ratchetClockStatus : sixteenthClockStatus;
+
+  if (syncClockStatus && !previous && isPlaying) {
+    dacRandValue = random(1024);
+  }
   
   midiTick = midiTick + 1;
 }
@@ -137,7 +156,7 @@ void handleControlChange(byte channel, byte control, byte value) {
 
   if (channel == 10) {
     if (control == 3) {
-      dac.setVoltage(noteToVolt(value), false);
+      dacCCValue = noteToVolt(value);
 
       delayStart = millis();
       delayIsRunning = true;
