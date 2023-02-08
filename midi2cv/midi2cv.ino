@@ -19,10 +19,7 @@ MIDI_CREATE_DEFAULT_INSTANCE();
 
 Adafruit_MCP4725 dac;
 
-//float npqList[9] = {12,8,4,3,2,1,0.5,1./3., 0.25};
-//int npqListSize = 9;
-
-float currentNpq = 0;
+byte actionCounter = 0;
 
 uint32_t midiTick = 0;
 
@@ -66,7 +63,7 @@ void performFreeClock() {
 
   dpot = dpot*dpot*dpot;
 
-  static const int minTime = 10;
+  static const int minTime = 5;
   static const int maxTime = 2000;
 
   int miliTime = dpot*(maxTime - minTime) + minTime;
@@ -78,37 +75,35 @@ void performFreeClock() {
 }
 
 void loop() {
-/*
-  int potValue = analogRead(RATIO_POT);
-  
-  int npqIndex = round((potValue/1023.0) * (npqListSize - 1));
-  
-  currentNpq = npqList[npqIndex];
-*/
-  performFreeClock();
+
+  actionCounter++;
+
+  if (actionCounter > 100) {
+
+    performFreeClock();
+
+    digitalWrite(OUT_CLOCK_16TH, (syncClockStatus && isPlaying) ? HIGH : LOW);
+    digitalWrite(OUT_CLOCK, freeClockStatus ? HIGH : LOW);
+
+    bool outSelector = digitalRead(SWITCH_CLOCK_OUT) == HIGH;
+    digitalWrite(OUT_GATE, (outSelector ? (syncClockStatus && isPlaying) : freeClockStatus) ? HIGH : LOW);
+
+    if ((millis() - delayStart) >= 500 && delayIsRunning) {
+      delayIsRunning = false;
+    }
+
+    bool dacMode = digitalRead(SWITCH_DAC_MODE) == HIGH;
+
+    if (dacMode) {
+      dac.setVoltage(dacCCValue, false);
+      digitalWrite(OUT_CV_LED, delayIsRunning ? HIGH : LOW);
+    } else {
+      dac.setVoltage(dacRandValue, false);
+      digitalWrite(OUT_CV_LED, (syncClockStatus && isPlaying) ? HIGH : LOW);
+    }
+
+  }
   MIDI.read();
-
-  digitalWrite(OUT_CLOCK_16TH, (syncClockStatus && isPlaying) ? HIGH : LOW);
-  digitalWrite(OUT_CLOCK, freeClockStatus ? HIGH : LOW);
-
-  bool outSelector = digitalRead(SWITCH_CLOCK_OUT) == HIGH;
-  digitalWrite(OUT_GATE, (outSelector ? (syncClockStatus && isPlaying) : freeClockStatus) ? HIGH : LOW);
-
-  if ((millis() - delayStart) >= 500 && delayIsRunning) {
-    delayIsRunning = false;
-  }
-
-  bool dacMode = digitalRead(SWITCH_DAC_MODE) == HIGH;
-
-  if (dacMode) {
-    dac.setVoltage(dacCCValue, false);
-    digitalWrite(OUT_CV_LED, delayIsRunning ? HIGH : LOW);
-  } else {
-    dac.setVoltage(dacRandValue, false);
-    digitalWrite(OUT_CV_LED, (syncClockStatus && isPlaying) ? HIGH : LOW);
-  }
-
-  
 }
 
 void handleStart() {
